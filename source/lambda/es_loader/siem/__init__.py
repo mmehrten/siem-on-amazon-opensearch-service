@@ -44,6 +44,7 @@ class LogS3:
     def __init__(self, record, s3bucket, s3key, logtype, logconfig, s3_client,
                  sqs_queue):
         self.error_logs_count = 0
+        self.total_log_count = 0
         self.record = record
         self.logtype = logtype
         self.logconfig = logconfig
@@ -58,7 +59,6 @@ class LogS3:
         self.loggroup = None
         self.logstream = None
 
-        logger.info(self.startmsg())
         if self.is_ignored:
             return None
         self.via_cwl = self.logconfig['via_cwl']
@@ -179,6 +179,8 @@ class LogS3:
             _s3obj_size = self.record['s3']['object'].get('size', 0)
         elif 'detail' in self.record:
             _s3obj_size = self.record['detail']['object'].get('size', 0)
+        else:
+            _s3obj_size = len(str(self.record))
         return _s3obj_size
 
     ###########################################################################
@@ -220,6 +222,20 @@ class LogS3:
             return FileFormatBase(self.rawdata, self.logconfig, self.logtype)
 
     def logdata_generator(self) -> Tuple[str, dict, dict]:
+        if "eventSourceArn" in self.record and "kinesis" in self.record["eventSourceArn"]:
+            cwl_logmeta = {}
+            cwl_logmeta['cwl_accountid'] = self.record['owner']
+            cwl_logmeta['loggroup'] = self.record['logGroup']
+            cwl_logmeta['logstream'] = self.record['logStream']
+            cwl_logmeta['cwl_id'] = self.record['id']
+            cwl_logmeta['cwl_timestamp'] = self.record['timestamp']
+            logdict = self.rawfile_instacne.convert_lograw_to_dict(self.record['message'])
+            self.total_log_count += 1
+            if isinstance(logdict, dict):
+                yield (self.record['message'], logdict, cwl_logmeta)
+            elif logdict == 'regex_error':
+                self.error_logs_count += 1
+            return
         logmeta = {}
         if self.__file_timestamp:
             logmeta['file_timestamp'] = self.__file_timestamp
@@ -383,6 +399,8 @@ class LogS3:
             yield (logdata, logdict, firelens_logmeta)
 
     def extract_rawdata_from_s3obj(self):
+        if "eventSourceArn" in self.record and "kinesis" in self.record["eventSourceArn"]:
+            return io.StringIO(self.record["message"])
         try:
             obj = self.s3_client.get_object(
                 Bucket=self.s3bucket, Key=self.s3key)
@@ -517,9 +535,7 @@ class LogParser:
         self.has_nanotime = self.logconfig['timestamp_nano']
 
     def __call__(self, lograw, logdict, logmeta):
-        if isinstance(logdict, dict):
-            pass
-        elif logdict == 'regex_error':
+        if logdict == 'regex_error':
             self.__logdata_dict = {'is_ignored': True}
             self.logfile.error_logs_count += 1
             return
