@@ -230,7 +230,7 @@ def get_es_entries(logfile):
         if logparser.is_ignored:
             logfile.excluded_log_count += 1
             if logparser.ignored_reason:
-                logger.debug(
+                logger.info(
                     f'Skipped log because {logparser.ignored_reason}')
             continue
         indexname = utils.get_writable_indexname(
