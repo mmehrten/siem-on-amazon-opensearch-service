@@ -54,9 +54,9 @@ def extract_logfile_from_s3(record):
     elif 'detail' in record:
         s3key = record['detail'].get('object', {}).get('key')
         s3bucket = record['detail'].get('bucket', {}).get('name')
-    elif "eventSourceArn" in record and "kinesis" in record["eventSourceArn"]:
+    elif "eventSourceARN" in record and "kinesis" in record["eventSourceARN"]:
         s3bucket = "kinesis"
-        s3key = record["eventSourceArn"].split("/")[-1]
+        s3key = record["eventSourceARN"].split("/")[-1]
     else:
         s3key = ''
         s3bucket = ''
@@ -525,7 +525,7 @@ def main(event, context):
                         "owner": data["owner"],
                         "logGroup": data["logGroup"],
                         "logStream": data["logStream"],
-                        "eventSourceArn": record["eventSourceARN"],
+                        "eventSourceARN": record["eventSourceARN"],
                         "eventID": record["eventID"],
                         "approximateArrivalTimestamp": record["kinesis"]["approximateArrivalTimestamp"],
                     }

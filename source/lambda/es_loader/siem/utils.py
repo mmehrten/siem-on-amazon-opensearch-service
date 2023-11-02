@@ -980,7 +980,7 @@ def value_from_nesteddict_by_dottedkeylist(nested_dict, dotted_key_list):
             return value
 
 
-def put_value_into_nesteddict(dotted_key, value):
+def put_value_into_nesteddict(dotted_key, value, nested_dict = None):
     """put value into nested dict by dotted key.
 
     dictのkeyにドットが含まれている場合に入れ子になったdictを作成し、
@@ -1003,14 +1003,26 @@ def put_value_into_nesteddict(dotted_key, value):
         value = value
     else:
         value = str(value)
-    nested_dict = {}
+    nested_dict = {} if nested_dict is None else nested_dict
     keys, current = dotted_key.split('.'), nested_dict
     for p in keys[:-1]:
-        current[p] = {}
+        if p not in current:
+            current[p] = {}
         current = current[p]
 
     current[keys[-1]] = value
     return nested_dict
+
+def del_value_from_nesteddict(dotted_key, nested_dict):
+    """Delete value from nested dict by dotted key.
+    """
+    keys, current = dotted_key.split('.'), nested_dict
+    for p in keys[:-1]:
+        if p not in current:
+            return
+        current = current[p]
+
+    del current[keys[-1]]
 
 
 def convert_keyname_to_safe_field(obj):

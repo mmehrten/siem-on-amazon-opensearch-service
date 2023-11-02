@@ -222,13 +222,16 @@ class LogS3:
             return FileFormatBase(self.rawdata, self.logconfig, self.logtype)
 
     def logdata_generator(self) -> Tuple[str, dict, dict]:
-        if "eventSourceArn" in self.record and "kinesis" in self.record["eventSourceArn"]:
+        if "eventSourceARN" in self.record and "kinesis" in self.record["eventSourceARN"]:
             cwl_logmeta = {}
             cwl_logmeta['cwl_accountid'] = self.record['owner']
             cwl_logmeta['loggroup'] = self.record['logGroup']
             cwl_logmeta['logstream'] = self.record['logStream']
             cwl_logmeta['cwl_id'] = self.record['id']
             cwl_logmeta['cwl_timestamp'] = self.record['timestamp']
+            cwl_logmeta['eventSourceARN'] = self.record['eventSourceARN']
+            cwl_logmeta['eventID'] = self.record['eventID']
+            cwl_logmeta['approximateArrivalTimestamp'] = self.record['approximateArrivalTimestamp']
             logdict = self.rawfile_instacne.convert_lograw_to_dict(self.record['message'])
             self.total_log_count += 1
             if isinstance(logdict, dict):
@@ -399,7 +402,7 @@ class LogS3:
             yield (logdata, logdict, firelens_logmeta)
 
     def extract_rawdata_from_s3obj(self):
-        if "eventSourceArn" in self.record and "kinesis" in self.record["eventSourceArn"]:
+        if "eventSourceARN" in self.record and "kinesis" in self.record["eventSourceARN"]:
             return io.StringIO(self.record["message"])
         try:
             obj = self.s3_client.get_object(
@@ -542,7 +545,10 @@ class LogParser:
 
         self.__skip_normalization = False
         self.lograw = lograw
-        self.__logdata_dict = logdict
+        if self.logconfig["rename_root"]:
+            self.__logdata_dict = utils.put_value_into_nesteddict(self.logconfig["rename_root"], logdict)
+        else:
+            self.__logdata_dict = logdict
         self.logmeta = logmeta
         self.original_fields = set(logdict.keys())
         self.additional_id = None
@@ -690,12 +696,17 @@ class LogParser:
         basic_dict['@message'] = self.lograw
         basic_dict['@timestamp'] = self.timestamp.isoformat()
         basic_dict['@log_type'] = self.logtype
-        basic_dict['@log_s3bucket'] = self.s3bucket
-        basic_dict['@log_s3key'] = self.s3key
-        basic_dict['@log_group'] = self.loggroup
-        basic_dict['@log_stream'] = self.logstream
         basic_dict['event'] = {'module': self.logtype}
         basic_dict['event']['ingested'] = self.event_ingested.isoformat()
+        if "eventSourceARN" in self.logmeta and "kinesis" in self.logmeta["eventSourceARN"]:
+            basic_dict['event']["kinesis_stream_arn"] = self.logmeta["eventSourceARN"]
+            # basic_dict['event']["cloudwatch_log_event_id"] = self.logmeta["eventID"]
+            basic_dict['event']["kinesis_arrival_timestamp"] = self.logmeta["approximateArrivalTimestamp"]
+        else:
+            basic_dict['event']['log_s3key'] = self.s3key
+            basic_dict['event']['log_s3bucket'] = self.s3bucket
+        basic_dict['event']['log_group'] = self.loggroup
+        basic_dict['event']['log_stream'] = self.logstream
         if self.__skip_normalization:
             unique_text = (
                 f'{basic_dict["@message"]}{self.s3key}{self.additional_id}')
@@ -709,7 +720,7 @@ class LogParser:
                 del self.__logdata_dict['__error_message']
 
         elif self.logconfig['doc_id']:
-            basic_dict['@id'] = self.__logdata_dict[self.logconfig['doc_id']]
+            basic_dict['@id'] = utils.value_from_nesteddict_by_dottedkey(self.__logdata_dict, self.logconfig['doc_id'])
         elif self.additional_id:
             unique_text = f'{basic_dict["@message"]}{self.additional_id}'
             basic_dict['@id'] = hashlib.md5(
@@ -728,10 +739,10 @@ class LogParser:
             return False
         elif self.logconfig.get('renamed_newfields'):
             for field in self.logconfig['renamed_newfields']:
-                v = self.__logdata_dict.get(self.logconfig[field])
+                v = utils.value_from_nesteddict_by_dottedkey(self.__logdata_dict, self.logconfig[field])
                 if v:
-                    self.__logdata_dict[field] = v
-                    del self.__logdata_dict[self.logconfig[field]]
+                    utils.put_value_into_nesteddict(field, v, self.__logdata_dict)
+                    utils.del_value_from_nesteddict(self.logconfig[field], self.__logdata_dict)
                     # fix oroginal field name list
                     self.original_fields.add(field)
                     self.original_fields.remove(self.logconfig[field])
@@ -742,7 +753,7 @@ class LogParser:
         for multifield_key in multifield_keys:
             v = utils.value_from_nesteddict_by_dottedkey(
                 self.__logdata_dict, multifield_key)
-            if v:
+            if v is not None:
                 # json obj in json obj
                 if isinstance(v, int):
                     new_dict = utils.put_value_into_nesteddict(
