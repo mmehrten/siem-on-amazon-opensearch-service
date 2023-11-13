@@ -56,7 +56,7 @@ def extract_logfile_from_s3(record):
         s3bucket = record['detail'].get('bucket', {}).get('name')
     elif "eventSourceARN" in record and "kinesis" in record["eventSourceARN"]:
         s3bucket = "kinesis"
-        s3key = record["eventSourceARN"].split("/")[-1]
+        s3key = record["logGroup"].split("/")[-1]
     else:
         s3key = ''
         s3bucket = ''
