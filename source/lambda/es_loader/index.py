@@ -83,12 +83,10 @@ def extract_logfile_from_s3(record):
                 client = security_lake_s3_client
             else:
                 logger.warning(
-                    "es-loader doesn't have valid credential to "
-                    "access the S3 bucket in Security Lake"
+                    "es-loader doesn't have valid credential to access the S3 bucket in Security Lake"
                 )
                 raise Exception(
-                    f"Failed to download s3://{s3bucket}/{s3key} "
-                    "because of invalid credential"
+                    f"Failed to download s3://{s3bucket}/{s3key} because of invalid credential"
                 )
 
         logfile = siem.LogS3(
