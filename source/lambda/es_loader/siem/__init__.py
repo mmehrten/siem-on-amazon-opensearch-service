@@ -239,6 +239,7 @@ class LogS3:
             cwl_logmeta["logstream"] = self.record["logStream"]
             cwl_logmeta["cwl_id"] = self.record["id"]
             cwl_logmeta["cwl_timestamp"] = self.record["timestamp"]
+            cwl_logmeta["cwl_timestamp"] = str(cwl_logmeta["cwl_timestamp"]) if cwl_logmeta["cwl_timestamp"] else None
             cwl_logmeta["eventSourceARN"] = self.record["eventSourceARN"]
             cwl_logmeta["eventID"] = self.record["eventID"]
             cwl_logmeta["approximateArrivalTimestamp"] = self.record[
@@ -382,6 +383,7 @@ class LogS3:
                     if start <= line_num <= end:
                         cwl_logmeta["cwl_id"] = logevent["id"]
                         cwl_logmeta["cwl_timestamp"] = logevent["timestamp"]
+                        cwl_logmeta["cwl_timestamp"] = str(cwl_logmeta["cwl_timestamp"]) if cwl_logmeta["cwl_timestamp"] else None
                         yield (logevent["message"], cwl_logmeta)
 
     def extract_firelens_log(self, start, end, logmeta={}):
@@ -585,7 +587,7 @@ class LogParser:
 
         self.__skip_normalization = False
         self.lograw = lograw
-        if self.logconfig["rename_root"]:
+        if self.logconfig.get("rename_root"):
             self.__logdata_dict = utils.put_value_into_nesteddict(
                 self.logconfig["rename_root"], logdict
             )
@@ -604,6 +606,7 @@ class LogParser:
             self.region = logmeta.get("cwe_region", self.region)
             self.cwl_id = logmeta.get("cwl_id")
             self.cwl_timestamp = logmeta.get("cwl_timestamp")
+            self.cwl_timestamp = str(self.cwl_timestamp) if self.cwl_timestamp else None
             self.cwe_id = logmeta.get("cwe_id")
             self.cwe_timestamp = logmeta.get("cwe_timestamp")
             self.file_timestamp = logmeta.get("file_timestamp")
